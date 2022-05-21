@@ -25,10 +25,32 @@ async function run() {
             res.send(services);
         })
 
+        app.get('/available', async (req, res) => {
+            const date = req.query.date;
+
+            const services = await servicesCollection.find().toArray();
+            const query = { date: date };
+            const bookings = await bookingsCollection.find(query).toArray();
+
+            services.forEach(service => {
+                const serviceBookings = bookings.filter(book => book.treatment === service.name);
+                const bookedSlots = serviceBookings.map(book => book.slot);
+                const available = service.slots.filter(slot => !bookedSlots.includes(slot));
+                service.slots = available;
+            })
+
+            res.send(services);
+        })
+
         app.post('/bookings', async (req, res) => {
             const booking = req.body;
+            const query = { treatment: booking.treatment, date: booking.date, patient: booking.patient }
+            const exists = await bookingsCollection.findOne(query);
+            if (exists) {
+                return res.send({ success: false, booking: exists });
+            };
             const result = await bookingsCollection.insertOne(booking);
-            res.send(result);
+            return res.send({ success: true, result });
         })
     }
     finally { }
@@ -36,9 +58,9 @@ async function run() {
 run().catch(console.dir);
 
 app.get('/', (req, res) => {
-    res.send('Hello World!')
+    res.send('Server connected!')
 })
 
 app.listen(port, () => {
-    console.log(`Example app listening on port ${port}`)
+    console.log(`Listening on port ${port}`)
 })
